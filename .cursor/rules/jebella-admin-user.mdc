@@ -1,0 +1,26 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Table: users
+
+- id           : uuid         [Primary Key, default: gen_random_uuid()]
+- name         : varchar      [nullable]
+- gender       : varchar      [nullable]
+- age          : int2         [nullable]
+- updated_at   : timestamptz  [default: now()]
+- created_at   : timestamptz  [default: now()]
+- user_type    : varchar      [default: 'buyer']
+- status       : varchar      [default: 'pending_verification']
+- is_deleted   : bool         [default: false]
+
+Table: user_emails
+
+- id           : uuid         [Primary Key, default: gen_random_uuid()]
+- email        : text         [nullable]
+- is_primary   : bool         [default: false]
+- is_deleted   : bool         [default: false]
+- created_at   : timestamptz  [default: now()]
+- updated_at   : timestamptz  [default: now()]
+- user_id      : uuid         [nullable, foreign key → users(id)]

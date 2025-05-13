@@ -1,0 +1,654 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Rules for Jebella Admin
+
+Basic IDEA of the app here
+
+This is a admin panel for a e-commerce platform (which foucus over selling clothing stuff and accessories for men, women, e.t.c) named as Jebella,
+where we have:
+1. admin (platform owner of Jebella, will have full access)
+2. sellers (they will have the some different access then the main admin)
+
+admin mainly will manage the sellers, like adding, deleting, updating, reading them;
+whereas sellers will have a differnt login route than the admin where they can login and will redirect to the sellers own dashboard page, admin will redirect to there own dashboard page
+sellers will manage there products 
+
+
+Structure of how you add a feature.
+Will work like features 
+
+
+do proper auth setup with email and password login/signup (for your information, for mobile app we are using the phone otp auth using twilio)
+
+DB Schema reference is(this is json type I copy it from supabase sql):
+
+ [
+  {
+    "table_schema": "public",
+    "source_table": "product_audiences",
+    "source_column": "product_id",
+    "target_table": "products",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "product_audiences",
+    "source_column": "audience_id",
+    "target_table": "audiences",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "product_colors",
+    "source_column": "product_id",
+    "target_table": "products",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "product_colors",
+    "source_column": "color_id",
+    "target_table": "colors",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "product_images",
+    "source_column": "product_id",
+    "target_table": "products",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "product_sizes",
+    "source_column": "product_id",
+    "target_table": "products",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "product_sizes",
+    "source_column": "size_id",
+    "target_table": "sizes",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "products",
+    "source_column": "category_id",
+    "target_table": "categories",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "products",
+    "source_column": "brand_id",
+    "target_table": "brands",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "products",
+    "source_column": "seller_id",
+    "target_table": "users",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "products",
+    "source_column": "subcategory_id",
+    "target_table": "subcategories",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "seller_metrics",
+    "source_column": "seller_id",
+    "target_table": "users",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "seller_shops",
+    "source_column": "user_id",
+    "target_table": "users",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "subcategories",
+    "source_column": "category_id",
+    "target_table": "categories",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "user_addresses",
+    "source_column": "user_id",
+    "target_table": "users",
+    "target_column": "id"
+  },
+  {
+    "table_schema": "public",
+    "source_table": "user_phone_numbers",
+    "source_column": "user_id",
+    "target_table": "users",
+    "target_column": "id"
+  }
+]
+
+Some more details for this:
+
+[
+  {
+    "table_name": "audiences",
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "audiences",
+    "column_name": "name",
+    "data_type": "text"
+  },
+  {
+    "table_name": "audiences",
+    "column_name": "is_deleted",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "audiences",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "audiences",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "brands",
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "brands",
+    "column_name": "name",
+    "data_type": "text"
+  },
+  {
+    "table_name": "brands",
+    "column_name": "description",
+    "data_type": "text"
+  },
+  {
+    "table_name": "brands",
+    "column_name": "logo_url",
+    "data_type": "text"
+  },
+  {
+    "table_name": "brands",
+    "column_name": "is_deleted",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "brands",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "brands",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "categories",
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "categories",
+    "column_name": "name",
+    "data_type": "text"
+  },
+  {
+    "table_name": "categories",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "categories",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "categories",
+    "column_name": "is_deleted",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "colors",
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "colors",
+    "column_name": "name",
+    "data_type": "text"
+  },
+  {
+    "table_name": "colors",
+    "column_name": "hex_code",
+    "data_type": "text"
+  },
+  {
+    "table_name": "colors",
+    "column_name": "is_deleted",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "colors",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "colors",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "product_audiences",
+    "column_name": "product_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "product_audiences",
+    "column_name": "audience_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "product_colors",
+    "column_name": "product_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "product_colors",
+    "column_name": "color_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "product_images",
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "product_images",
+    "column_name": "product_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "product_images",
+    "column_name": "url",
+    "data_type": "text"
+  },
+  {
+    "table_name": "product_images",
+    "column_name": "is_primary",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "product_images",
+    "column_name": "is_deleted",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "product_images",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "product_images",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "product_sizes",
+    "column_name": "product_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "product_sizes",
+    "column_name": "size_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "products",
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "products",
+    "column_name": "seller_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "products",
+    "column_name": "title",
+    "data_type": "text"
+  },
+  {
+    "table_name": "products",
+    "column_name": "sub_title",
+    "data_type": "text"
+  },
+  {
+    "table_name": "products",
+    "column_name": "description",
+    "data_type": "text"
+  },
+  {
+    "table_name": "products",
+    "column_name": "price",
+    "data_type": "numeric"
+  },
+  {
+    "table_name": "products",
+    "column_name": "discount_price",
+    "data_type": "numeric"
+  },
+  {
+    "table_name": "products",
+    "column_name": "stock_quantity",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "products",
+    "column_name": "condition",
+    "data_type": "text"
+  },
+  {
+    "table_name": "products",
+    "column_name": "status",
+    "data_type": "text"
+  },
+  {
+    "table_name": "products",
+    "column_name": "is_approved",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "products",
+    "column_name": "is_deleted",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "products",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "products",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "products",
+    "column_name": "brand_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "products",
+    "column_name": "category_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "products",
+    "column_name": "subcategory_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "seller_metrics",
+    "column_name": "seller_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "seller_metrics",
+    "column_name": "total_sales",
+    "data_type": "numeric"
+  },
+  {
+    "table_name": "seller_metrics",
+    "column_name": "total_orders",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "seller_metrics",
+    "column_name": "products_count",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "seller_metrics",
+    "column_name": "last_order_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "seller_metrics",
+    "column_name": "is_deleted",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "seller_metrics",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "seller_metrics",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "seller_shops",
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "seller_shops",
+    "column_name": "user_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "seller_shops",
+    "column_name": "shop_name",
+    "data_type": "character varying"
+  },
+  {
+    "table_name": "seller_shops",
+    "column_name": "description",
+    "data_type": "text"
+  },
+  {
+    "table_name": "seller_shops",
+    "column_name": "logo_url",
+    "data_type": "text"
+  },
+  {
+    "table_name": "seller_shops",
+    "column_name": "rating",
+    "data_type": "numeric"
+  },
+  {
+    "table_name": "seller_shops",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "seller_shops",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "seller_shops",
+    "column_name": "is_deleted",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "sizes",
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "sizes",
+    "column_name": "label",
+    "data_type": "text"
+  },
+  {
+    "table_name": "sizes",
+    "column_name": "is_deleted",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "sizes",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "sizes",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "subcategories",
+    "column_name": "id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "subcategories",
+    "column_name": "category_id",
+    "data_type": "integer"
+  },
+  {
+    "table_name": "subcategories",
+    "column_name": "name",
+    "data_type": "text"
+  },
+  {
+    "table_name": "subcategories",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "subcategories",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "subcategories",
+    "column_name": "is_deleted",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "id",
+    "data_type": "bigint"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "user_id",
+    "data_type": "bigint"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "name",
+    "data_type": "character varying"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "country_code",
+    "data_type": "character varying"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "phone",
+    "data_type": "character varying"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "label",
+    "data_type": "character varying"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "line_1",
+    "data_type": "character varying"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "line_2",
+    "data_type": "character varying"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "city",
+    "data_type": "character varying"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "state",
+    "data_type": "character varying"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "postal_code",
+    "data_type": "character varying"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "country",
+    "data_type": "character varying"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "is_default",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "updated_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "created_at",
+    "data_type": "timestamp with time zone"
+  },
+  {
+    "table_name": "user_addresses",
+    "column_name": "is_deleted",
+    "data_type": "boolean"
+  },
+  {
+    "table_name": "user_phone_numbers",
+    "column_name": "id",
+    "data_type": "bigint"
+  },
+  {
+    "table_name": "user_phone_numbers",
+    "column_name": "user_id",
+    "data_type": "bigint"
+  },
+  {
+    "table_name": "user_phone_numbers",
+    "column_name": "country_code",
+    "data_type": "character varying"
+  }
+]
+
+for  creating a sindle product by seller:
+seller should be able to CURD the requried parmeters (which is used to created a product) individually, like product brand details, category details, subcategory details, and so on look at the products table  schema for more details
+
+
+ I want to maintain consistency throughout the codebase. This is an admin panel, so things would be similar (mostly CRUD). 
+
+ Next once feature is added, you must ensure that you add that to the routes.

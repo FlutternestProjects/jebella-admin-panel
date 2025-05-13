@@ -1,0 +1,47 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+
+seller_shops
++-------------+-------------+-----------------------+----------+
+| Name        | Type        | Default Value         | Primary  |
++-------------+-------------+-----------------------+----------+
+| id          | uuid        | gen_random_uuid()     | Yes      |
+| shop_name   | varchar     | NULL                  |          |
+| description | text        | NULL                  |          |
+| logo_url    | text        | NULL                  |          |
+| rating      | numeric     | NULL                  |          |
+| created_at  | timestamptz | now()                 |          |
+| updated_at  | timestamptz | now()                 |          |
+| is_deleted  | bool        | false                 |          |
+| user_id     | uuid        | NULL                  |          |
+| address     | text        | NULL                  |          |
+| phone       | varchar     | NULL                  |          |
++-------------+-------------+-----------------------+----------+
+
+🔗 Foreign Keys
+user_id → public.users.id
+
+------------------------------------------------------------------
+
+seller_metrics
++----------------+-------------+-----------------------+----------+
+| Name           | Type        | Default Value         | Primary  |
++----------------+-------------+-----------------------+----------+
+| id             | uuid        | gen_random_uuid()     | Yes      |
+| total_sales    | numeric     | 0                     |          |
+| total_orders   | int4        | 0                     |          |
+| products_count | int4        | 0                     |          |
+| last_order_at  | timestamptz | NULL                  |          |
+| is_deleted     | bool        | false                 |          |
+| created_at     | timestamptz | now()                 |          |
+| updated_at     | timestamptz | now()                 |          |
+| user_id        | uuid        | NULL                  |          |
+| shop_id        | uuid        | NULL                  |          |
++----------------+-------------+-----------------------+----------+
+🔗 Foreign Keys
+user_id → public.users.id
+
+shop_id → public.seller_shops.id

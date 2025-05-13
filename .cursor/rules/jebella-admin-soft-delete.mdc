@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+
+make sure we will soft delete every thing we have the
+
+- is_deleted   : bool         [default: false]
+
+in our database
