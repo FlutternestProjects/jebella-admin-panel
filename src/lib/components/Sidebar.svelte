@@ -70,6 +70,9 @@
         <li class:active={$page.url.pathname === '/admin/sellers'}>
             <a href="/admin/sellers">Manage Sellers</a>
         </li>
+        <li class:active={$page.url.pathname === '/admin/brands'}>
+            <a href="/admin/brands">Manage Brands</a>
+        </li>
     </ul>
     <div class="user-section">
         <div class="user-info">

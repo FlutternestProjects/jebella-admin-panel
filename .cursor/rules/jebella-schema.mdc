@@ -1,0 +1,183 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Here is the supabase schema of my projcect:
+
+Table: audiences
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+name: text, NOT NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: brands
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+name: text, NOT NULL
+description: text, NULL
+logo_url: text, NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: categories
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+name: text, NOT NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: subcategories
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+category_id: uuid, NULL, FK → categories.id
+name: text, NOT NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: colors
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+name: text, NOT NULL
+hex_code: text, NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: sizes
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+label: text, NOT NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: products
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+title: text, NOT NULL
+sub_title: text, NULL
+description: text, NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+brand_id: uuid, NULL, FK → brands.id
+category_id: uuid, NOT NULL, FK → categories.id
+subcategory_id: uuid, NOT NULL, FK → subcategories.id
+seller_id: uuid, NOT NULL, FK → users.id
+
+Table: product_variants
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+product_id: uuid, NOT NULL, FK → products.id
+name: text, NOT NULL
+sku: text, NOT NULL, UNIQUE
+size_id: uuid, NULL, FK → sizes.id
+color_id: uuid, NULL, FK → colors.id
+price: numeric, NOT NULL
+discount_price: numeric, NULL
+condition: text, NOT NULL, DEFAULT 'new'
+status: text, NOT NULL, DEFAULT 'active'
+is_approved: boolean, NOT NULL, DEFAULT false
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: product_images
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+product_id: uuid, NOT NULL, FK → products.id
+variant_id: uuid, NULL, FK → product_variants.id
+url: text, NOT NULL
+is_primary: boolean, NOT NULL, DEFAULT false
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: product_audiences
+product_id: uuid, NOT NULL, PK part 1, FK → products.id
+audience_id: uuid, NOT NULL, PK part 2, FK → audiences.id
+
+Table: seller_metrics
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+user_id: uuid, NOT NULL, FK → users.id
+shop_id: uuid, NOT NULL, FK → seller_shops.id
+total_sales: numeric, NOT NULL, DEFAULT 0
+total_orders: integer, NOT NULL, DEFAULT 0
+products_count: integer, NOT NULL, DEFAULT 0
+last_order_at: timestamp with time zone, NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: seller_shops
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+user_id: uuid, NOT NULL, FK → users.id
+shop_name: character varying, NOT NULL
+description: text, NULL
+logo_url: text, NULL
+rating: numeric, NULL
+address: text, NULL
+phone: character varying, NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: users
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+name: character varying, NULL
+gender: character varying, NULL
+age: smallint, NULL
+user_type: character varying, NOT NULL, DEFAULT 'buyer'
+status: character varying, NOT NULL, DEFAULT 'pending_verification'
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: user_addresses
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+user_id: uuid, NULL, FK → users.id
+name: character varying, NULL
+label: character varying, NULL
+line_1: character varying, NOT NULL
+line_2: character varying, NULL
+city: character varying, NOT NULL
+state: character varying, NULL
+postal_code: character varying, NOT NULL
+country: character varying, NOT NULL
+country_code: character varying, NULL
+phone: character varying, NULL
+is_default: boolean, NULL, DEFAULT false
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: user_emails
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+user_id: uuid, NOT NULL, FK → users.id
+email: text, NOT NULL
+is_primary: boolean, NULL, DEFAULT false
+is_deleted: boolean, NULL, DEFAULT false
+created_at: timestamp with time zone, NULL, DEFAULT now()
+updated_at: timestamp with time zone, NULL, DEFAULT now()
+
+Table: user_phone_numbers
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+user_id: uuid, NOT NULL, FK → users.id
+country_code: character varying, NOT NULL
+phone: character varying, NOT NULL
+label: character varying, NULL
+is_primary: boolean, NULL, DEFAULT false
+is_verified: boolean, NOT NULL, DEFAULT false
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+
+
+
+For images (Storage Buckets):
+Upload to supabase bucket, and get url and save to the respective feild
+
+Brand Logo: for brands logo_url we have a Bucket named as brand-logos
+1 MB of limit set for per image (Equivalent to 1,048,576 bytes).
+
+
+Overall note:
+updated_at: I set the auto update triger in supabase, when we will update the data.
