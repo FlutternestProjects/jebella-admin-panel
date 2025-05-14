@@ -6,6 +6,18 @@
     import { goto } from '$app/navigation';
     import { toast } from '$lib/toast';
     import ImageUpload from '$lib/components/ImageUpload.svelte';
+    import Pagination from '$lib/components/Pagination.svelte';
+    import SearchBar from '$lib/components/SearchBar.svelte';
+
+    interface Brand {
+        id: string;
+        name: string;
+        description: string;
+        logo_url: string;
+        is_deleted: boolean;
+        created_at: string;
+        updated_at: string;
+    }
 
     let brands: Brand[] = [];
     let loading = true;
@@ -24,9 +36,15 @@
     let editImageUpload: ImageUpload;
     let previewUrl: string | null = null;
     let editPreviewUrl: string | null = null;
+    let isImageRemoved = false;
+    let error: string | null = null;
+    let currentPage = 1;
+    let totalPages = 1;
+    let searchQuery = '';
+    const itemsPerPage = 10;
 
     onMount(async () => {
-        await loadBrands();
+        await fetchBrands();
     });
 
     // Handle back button
@@ -47,45 +65,86 @@
         };
     });
 
-    async function loadBrands() {
+    async function fetchBrands() {
         try {
             loading = true;
-            const { data, error } = await supabase
+            error = null;
+
+            let query = supabase
                 .from('brands')
-                .select('*')
-                .eq('is_deleted', false)
+                .select('*', { count: 'exact' })
+                .eq('is_deleted', false);
+
+            if (searchQuery) {
+                query = query.ilike('name', `%${searchQuery}%`);
+            }
+
+            const { data, error: err, count } = await query
+                .range((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage - 1)
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
-            brands = data;
-        } catch (error) {
-            console.error('Error loading brands:', error);
-            toast.error('Failed to load brands');
+            if (err) throw err;
+
+            brands = data || [];
+            totalPages = Math.ceil((count || 0) / itemsPerPage);
+        } catch (err) {
+            console.error('Error fetching brands:', err);
+            error = 'Failed to load brands';
         } finally {
             loading = false;
         }
     }
 
-    function handleFileSelect(event: CustomEvent<{ file: File }>) {
-        const file = event.detail.file;
-        const target = event.target as HTMLElement;
-        const isAddModal = target.closest('#add-modal') !== null;
+    function handlePageChange(page: number) {
+        currentPage = page;
+        fetchBrands();
+    }
 
-        if (isAddModal) {
+    function handleSearch(event: CustomEvent<{ value: string }>) {
+        searchQuery = event.detail.value;
+        currentPage = 1;
+        fetchBrands();
+    }
+
+    function handleFileSelect(event: CustomEvent<{ file: File; modalType: 'add' | 'edit' }>) {
+        const { file, modalType } = event.detail;
+        console.log('File selected:', file.name, file.type, file.size, 'for modal:', modalType);
+
+        if (modalType === 'add') {
             selectedFile = file;
-        } else {
+            console.log('File assigned to add modal');
+        } else if (modalType === 'edit') {
             selectedEditFile = file;
+            console.log('File assigned to edit modal');
+        } else {
+            console.error('Unknown modal type:', modalType);
         }
     }
 
     function handleRemoveImage(event: CustomEvent<void>) {
-        const target = event.target as HTMLElement;
-        const isAddModal = target.closest('#add-modal') !== null;
+        const sourceElement = event.target as HTMLElement;
+        const modalElement = sourceElement.closest('[data-modal]');
+        
+        if (!modalElement) {
+            console.error('Could not find modal element');
+            return;
+        }
 
-        if (isAddModal) {
+        const modalType = modalElement.getAttribute('data-modal');
+        if (modalType === 'add') {
             selectedFile = null;
-        } else {
+            newBrand.logo_url = '';
+            isImageRemoved = true;
+            console.log('File removed from add modal');
+        } else if (modalType === 'edit') {
             selectedEditFile = null;
+            if (selectedBrand) {
+                selectedBrand.logo_url = '';
+            }
+            isImageRemoved = true;
+            console.log('File removed from edit modal');
+        } else {
+            console.error('Unknown modal type:', modalType);
         }
     }
 
@@ -96,32 +155,69 @@
     async function uploadLogo(file: File): Promise<string | null> {
         try {
             uploadingLogo = true;
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-            const filePath = `${fileName}`;
+            console.log('Starting file upload:', file.name, file.type, file.size);
 
-            // Upload file to Supabase storage
+            // First, check if we can access storage
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (userError) {
+                console.error('Auth error:', userError);
+                throw new Error('Authentication required for upload');
+            }
+
+            if (!user) {
+                console.error('No authenticated user found');
+                throw new Error('You must be logged in to upload files');
+            }
+
+            console.log('User authenticated:', user.id);
+
+            // Generate a unique file name
+            const timestamp = Date.now();
+            const randomString = Math.random().toString(36).substring(2, 15);
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${timestamp}-${randomString}.${fileExt}`;
+            const filePath = fileName;
+            
+            console.log('Uploading file:', {
+                fileName,
+                fileType: file.type,
+                fileSize: file.size,
+                userId: user.id
+            });
+
+            // Upload the file directly to the brand-logos bucket
             const { error: uploadError, data } = await supabase.storage
                 .from('brand-logos')
                 .upload(filePath, file, {
                     cacheControl: '3600',
-                    upsert: false
+                    upsert: true,
+                    contentType: file.type
                 });
 
             if (uploadError) {
                 console.error('Upload error:', uploadError);
-                throw uploadError;
+                if (uploadError.message.includes('bucket does not exist')) {
+                    throw new Error('Storage bucket not found. Please contact the administrator to create the brand-logos bucket.');
+                }
+                if (uploadError.message.includes('row-level security policy')) {
+                    throw new Error('Permission denied. Please ensure you have the correct permissions to upload files.');
+                }
+                throw new Error(`Upload failed: ${uploadError.message}`);
             }
 
+            console.log('Upload successful:', data);
+
             // Get the public URL
-            const { data: { publicUrl } } = supabase.storage
+            const { data: urlData } = supabase.storage
                 .from('brand-logos')
                 .getPublicUrl(filePath);
 
-            return publicUrl;
+            console.log('Public URL:', urlData.publicUrl);
+            return urlData.publicUrl;
         } catch (error) {
             console.error('Error uploading logo:', error);
-            toast.error('Failed to upload logo');
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            toast.error(`Failed to upload logo: ${errorMessage}`);
             return null;
         } finally {
             uploadingLogo = false;
@@ -130,23 +226,35 @@
 
     async function handleAddBrand() {
         try {
-            let logoUrl = newBrand.logo_url;
+            if (!newBrand.name?.trim()) {
+                toast.error('Brand name is required');
+                return;
+            }
 
-            if (selectedFile) {
-                const uploadedUrl = await uploadLogo(selectedFile);
-                if (!uploadedUrl) {
-                    toast.error('Failed to upload logo');
-                    return;
-                }
-                logoUrl = uploadedUrl;
+            // Check if brand name already exists
+            const { data: existingBrand, error: checkError } = await supabase
+                .from('brands')
+                .select('id')
+                .eq('name', newBrand.name.trim())
+                .eq('is_deleted', false)
+                .single();
+
+            if (checkError && checkError.code !== 'PGRST116') {
+                console.error('Error checking brand name:', checkError);
+                throw checkError;
+            }
+
+            if (existingBrand) {
+                toast.error('A brand with this name already exists');
+                return;
             }
 
             const { error } = await supabase
                 .from('brands')
                 .insert([{ 
-                    name: newBrand.name,
-                    description: newBrand.description,
-                    logo_url: logoUrl,
+                    name: newBrand.name.trim(),
+                    description: newBrand.description.trim(),
+                    logo_url: newBrand.logo_url.trim(),
                     is_deleted: false
                 }]);
 
@@ -158,11 +266,11 @@
             toast.success('Brand added successfully');
             showAddModal = false;
             newBrand = { name: '', description: '', logo_url: '' };
-            selectedFile = null;
-            await loadBrands();
+            await fetchBrands();
         } catch (error) {
             console.error('Error adding brand:', error);
-            toast.error('Failed to add brand');
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            toast.error(`Failed to add brand: ${errorMessage}`);
         }
     }
 
@@ -170,23 +278,36 @@
         if (!selectedBrand) return;
 
         try {
-            let logoUrl = selectedBrand.logo_url;
+            if (!selectedBrand.name?.trim()) {
+                toast.error('Brand name is required');
+                return;
+            }
 
-            if (selectedEditFile) {
-                const uploadedUrl = await uploadLogo(selectedEditFile);
-                if (!uploadedUrl) {
-                    toast.error('Failed to upload logo');
-                    return;
-                }
-                logoUrl = uploadedUrl;
+            // Check if brand name already exists (excluding current brand)
+            const { data: existingBrand, error: checkError } = await supabase
+                .from('brands')
+                .select('id')
+                .eq('name', selectedBrand.name.trim())
+                .eq('is_deleted', false)
+                .neq('id', selectedBrand.id)
+                .single();
+
+            if (checkError && checkError.code !== 'PGRST116') {
+                console.error('Error checking brand name:', checkError);
+                throw checkError;
+            }
+
+            if (existingBrand) {
+                toast.error('A brand with this name already exists');
+                return;
             }
 
             const { error } = await supabase
                 .from('brands')
                 .update({
-                    name: selectedBrand.name,
-                    description: selectedBrand.description,
-                    logo_url: logoUrl,
+                    name: selectedBrand.name.trim(),
+                    description: selectedBrand.description.trim(),
+                    logo_url: selectedBrand.logo_url.trim(),
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', selectedBrand.id);
@@ -199,8 +320,7 @@
             toast.success('Brand updated successfully');
             showEditModal = false;
             selectedBrand = null;
-            selectedEditFile = null;
-            await loadBrands();
+            await fetchBrands();
         } catch (error) {
             console.error('Error updating brand:', error);
             toast.error('Failed to update brand');
@@ -219,11 +339,22 @@
             if (error) throw error;
 
             toast.success('Brand deleted successfully');
-            await loadBrands();
+            await fetchBrands();
         } catch (error) {
             console.error('Error deleting brand:', error);
             toast.error('Failed to delete brand');
         }
+    }
+
+    // Reset state when closing modals
+    function handleCloseAddModal() {
+        showAddModal = false;
+        newBrand = { name: '', description: '', logo_url: '' };
+    }
+
+    function handleCloseEditModal() {
+        showEditModal = false;
+        selectedBrand = null;
     }
 
     // Cleanup preview URLs when component is destroyed
@@ -246,10 +377,18 @@
         </button>
     </div>
 
+    <div class="mb-4">
+        <SearchBar placeholder="Search brands..." on:search={handleSearch} />
+    </div>
+
     {#if loading}
         <div class="flex justify-center items-center h-64">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
+    {:else if error}
+        <div class="text-center py-4 text-red-600">{error}</div>
+    {:else if brands.length === 0}
+        <div class="text-center py-4 text-gray-500">No brands found</div>
     {:else}
         <div class="bg-white rounded-lg shadow overflow-hidden">
             <table class="min-w-full divide-y divide-gray-200">
@@ -258,6 +397,7 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logo</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
@@ -269,12 +409,15 @@
                                     <img src={brand.logo_url} alt={brand.name} class="h-10 w-10 object-contain" />
                                 {:else}
                                     <div class="h-10 w-10 bg-gray-200 rounded flex items-center justify-center">
-                                        <span class="text-gray-500">No logo</span>
+                                        <span class="text-gray-500 text-xs">No logo</span>
                                     </div>
                                 {/if}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">{brand.name}</td>
-                            <td class="px-6 py-4">{brand.description || '-'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">{brand.description}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {new Date(brand.created_at).toLocaleDateString()}
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <button
                                     class="text-blue-600 hover:text-blue-900 mr-3"
@@ -297,6 +440,14 @@
                 </tbody>
             </table>
         </div>
+
+        <div class="mt-4">
+            <Pagination
+                {currentPage}
+                {totalPages}
+                onPageChange={handlePageChange}
+            />
+        </div>
     {/if}
 </div>
 
@@ -304,7 +455,7 @@
 {#if showAddModal}
     <div 
         class="modal-overlay" 
-        on:click={() => showAddModal = false}
+        on:click={handleCloseAddModal}
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-modal-title"
@@ -319,7 +470,7 @@
             <form on:submit|preventDefault={handleAddBrand}>
                 <div class="mb-4">
                     <label class="block text-gray-700 text-sm font-bold mb-2" for="name">
-                        Name
+                        Name *
                     </label>
                     <input
                         type="text"
@@ -341,34 +492,30 @@
                     ></textarea>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2" for="brand-logo">
-                        Brand Logo
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="logo_url">
+                        Logo URL
                     </label>
-                    <ImageUpload
-                        bind:this={addImageUpload}
-                        currentImageUrl={newBrand.logo_url}
-                        on:fileSelect={handleFileSelect}
-                        on:error={handleUploadError}
-                        on:remove={handleRemoveImage}
+                    <input
+                        type="url"
+                        id="logo_url"
+                        bind:value={newBrand.logo_url}
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        placeholder="https://example.com/logo.png"
                     />
                 </div>
                 <div class="flex justify-end gap-2">
                     <button
                         type="button"
                         class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
-                        on:click={() => {
-                            showAddModal = false;
-                            selectedFile = null;
-                        }}
+                        on:click={handleCloseAddModal}
                     >
                         Cancel
                     </button>
                     <button
                         type="submit"
                         class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                        disabled={uploadingLogo}
                     >
-                        {uploadingLogo ? 'Uploading...' : 'Add Brand'}
+                        Add Brand
                     </button>
                 </div>
             </form>
@@ -380,7 +527,7 @@
 {#if showEditModal && selectedBrand}
     <div 
         class="modal-overlay" 
-        on:click={() => showEditModal = false}
+        on:click={handleCloseEditModal}
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-modal-title"
@@ -395,7 +542,7 @@
             <form on:submit|preventDefault={handleEditBrand}>
                 <div class="mb-4">
                     <label class="block text-gray-700 text-sm font-bold mb-2" for="edit-name">
-                        Name
+                        Name *
                     </label>
                     <input
                         type="text"
@@ -417,34 +564,30 @@
                     ></textarea>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2" for="edit-brand-logo">
-                        Brand Logo
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="edit-logo_url">
+                        Logo URL
                     </label>
-                    <ImageUpload
-                        bind:this={editImageUpload}
-                        currentImageUrl={selectedBrand.logo_url}
-                        on:fileSelect={handleFileSelect}
-                        on:error={handleUploadError}
-                        on:remove={handleRemoveImage}
+                    <input
+                        type="url"
+                        id="edit-logo_url"
+                        bind:value={selectedBrand.logo_url}
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        placeholder="https://example.com/logo.png"
                     />
                 </div>
                 <div class="flex justify-end gap-2">
                     <button
                         type="button"
                         class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
-                        on:click={() => {
-                            showEditModal = false;
-                            selectedEditFile = null;
-                        }}
+                        on:click={handleCloseEditModal}
                     >
                         Cancel
                     </button>
                     <button
                         type="submit"
                         class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                        disabled={uploadingLogo}
                     >
-                        {uploadingLogo ? 'Uploading...' : 'Save Changes'}
+                        Save Changes
                     </button>
                 </div>
             </form>

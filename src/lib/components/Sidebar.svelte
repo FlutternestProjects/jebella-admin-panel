@@ -73,6 +73,21 @@
         <li class:active={$page.url.pathname === '/admin/brands'}>
             <a href="/admin/brands">Manage Brands</a>
         </li>
+        <li class:active={$page.url.pathname === '/admin/categories'}>
+            <a href="/admin/categories">Manage Categories</a>
+        </li>
+        <li class:active={$page.url.pathname === '/admin/subcategories'}>
+            <a href="/admin/subcategories">Manage Subcategories</a>
+        </li>
+        <li class:active={$page.url.pathname === '/admin/audiences'}>
+            <a href="/admin/audiences">Manage Audiences</a>
+        </li>
+        <li class:active={$page.url.pathname === '/admin/colors'}>
+            <a href="/admin/colors">Manage Colors</a>
+        </li>
+        <li class:active={$page.url.pathname === '/admin/sizes'}>
+            <a href="/admin/sizes">Manage Sizes</a>
+        </li>
     </ul>
     <div class="user-section">
         <div class="user-info">

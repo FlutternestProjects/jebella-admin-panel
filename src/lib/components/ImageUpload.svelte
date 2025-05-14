@@ -1,69 +1,46 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
+    import { toast } from '$lib/toast';
 
     export let currentImageUrl: string | null = null;
     export let accept = 'image/*';
-    export let maxSize = 1048576; // 1MB in bytes
-
-    let dragActive = false;
-    let fileInput: HTMLInputElement;
-    let error: string | null = null;
-    let previewUrl: string | null = null;
+    export let maxSize = 1048576; // 1MB
+    export let modalType: 'add' | 'edit' = 'add';
+    export let dragAndDrop = false;
 
     const dispatch = createEventDispatcher<{
-        fileSelect: { file: File };
+        fileSelect: { file: File; modalType: 'add' | 'edit' };
         error: { message: string };
         remove: void;
     }>();
 
-    function handleDragEnter(e: DragEvent) {
-        e.preventDefault();
-        e.stopPropagation();
-        dragActive = true;
-    }
+    let previewUrl: string | null = null;
+    let fileInput: HTMLInputElement;
+    let isDragging = false;
+    let hasImage = false;
 
-    function handleDragLeave(e: DragEvent) {
-        e.preventDefault();
-        e.stopPropagation();
-        dragActive = false;
-    }
+    $: hasImage = !!(previewUrl || currentImageUrl);
 
-    function handleDragOver(e: DragEvent) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    function handleDrop(e: DragEvent) {
-        e.preventDefault();
-        e.stopPropagation();
-        dragActive = false;
-
-        const files = e.dataTransfer?.files;
-        if (!files?.length) return;
-
-        handleFile(files[0]);
-    }
-
-    function handleFileSelect(e: Event) {
-        const input = e.target as HTMLInputElement;
+    function handleFileSelect(event: Event) {
+        const input = event.target as HTMLInputElement;
         if (!input.files?.length) return;
-        handleFile(input.files[0]);
+
+        const file = input.files[0];
+        if (!file) return;
+
+        validateAndProcessFile(file);
     }
 
-    function handleFile(file: File) {
-        error = null;
-
-        // Check file size
-        if (file.size > maxSize) {
-            error = `File size must be less than ${maxSize / 1024 / 1024}MB`;
-            dispatch('error', { message: error });
+    function validateAndProcessFile(file: File) {
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please select an image file');
             return;
         }
 
-        // Check file type
-        if (!file.type.startsWith('image/')) {
-            error = 'Please select an image file';
-            dispatch('error', { message: error });
+        // Validate file size
+        if (file.size > maxSize) {
+            toast.error('Image size should be less than 1MB');
             return;
         }
 
@@ -72,23 +49,46 @@
             URL.revokeObjectURL(previewUrl);
         }
         previewUrl = URL.createObjectURL(file);
-        dispatch('fileSelect', { file });
+
+        // Dispatch file selection event with modal type
+        dispatch('fileSelect', { file, modalType });
     }
 
-    function triggerFileInput() {
-        // Reset the file input value to allow selecting the same file again
-        fileInput.value = '';
-        fileInput.click();
+    function handleDragOver(event: DragEvent) {
+        event.preventDefault();
+        if (dragAndDrop) {
+            isDragging = true;
+        }
     }
 
-    function handleRemove(e: MouseEvent) {
-        e.stopPropagation();
+    function handleDragLeave(event: DragEvent) {
+        event.preventDefault();
+        if (dragAndDrop) {
+            isDragging = false;
+        }
+    }
+
+    function handleDrop(event: DragEvent) {
+        event.preventDefault();
+        isDragging = false;
+
+        if (!dragAndDrop) return;
+
+        const files = event.dataTransfer?.files;
+        if (!files?.length) return;
+
+        const file = files[0];
+        validateAndProcessFile(file);
+    }
+
+    function handleRemove() {
         if (previewUrl) {
             URL.revokeObjectURL(previewUrl);
             previewUrl = null;
         }
-        // Reset the file input value
-        fileInput.value = '';
+        if (fileInput) {
+            fileInput.value = '';
+        }
         dispatch('remove');
     }
 
@@ -101,82 +101,69 @@
     });
 </script>
 
-<div
-    class="image-upload"
-    class:drag-active={dragActive}
-    on:dragenter={handleDragEnter}
-    on:dragleave={handleDragLeave}
-    on:dragover={handleDragOver}
-    on:drop={handleDrop}
-    role="button"
-    tabindex="0"
-    on:keydown={(e) => e.key === 'Enter' && triggerFileInput()}
->
-    <input
-        type="file"
-        bind:this={fileInput}
-        {accept}
-        on:change={handleFileSelect}
-        class="hidden"
-    />
-
-    {#if previewUrl || currentImageUrl}
-        <div class="current-image">
-            <img src={previewUrl || currentImageUrl} alt="Preview" />
-            <button
-                type="button"
-                class="remove-button"
-                on:click={handleRemove}
-                aria-label="Remove image"
-            >
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-6 w-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+<div class="relative">
+    <div class="flex items-center space-x-4">
+        {#if hasImage}
+            <div class="relative">
+                <img
+                    src={previewUrl || currentImageUrl}
+                    alt="Preview"
+                    class="h-20 w-20 object-cover rounded"
+                />
+                <button
+                    type="button"
+                    class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                    on:click={handleRemove}
                 >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M6 18L18 6M6 6l12 12"
-                    />
-                </svg>
-            </button>
-        </div>
-    {:else}
-        <div class="upload-area" on:click={triggerFileInput}>
-            <div class="upload-content">
-                <svg
-                    class="upload-icon"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                </svg>
-                <p class="upload-text">
-                    {#if dragActive}
-                        Drop your image here
-                    {:else}
-                        Drag and drop an image here, or click to select
-                    {/if}
-                </p>
-                <p class="upload-hint">Max file size: {maxSize / 1024 / 1024}MB. Supported formats: JPG, PNG, GIF</p>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
             </div>
+        {/if}
+        <div class="flex-1">
+            <input
+                type="file"
+                bind:this={fileInput}
+                accept={accept}
+                on:change={handleFileSelect}
+                class="hidden"
+                id="file-upload"
+            />
+            {#if dragAndDrop}
+                <div
+                    class="image-upload"
+                    class:drag-active={isDragging}
+                    on:dragover={handleDragOver}
+                    on:dragleave={handleDragLeave}
+                    on:drop={handleDrop}
+                >
+                    <label
+                        for="file-upload"
+                        class="upload-area"
+                    >
+                        <div class="upload-content">
+                            <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.293A1 1 0 015.586 4H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                            </svg>
+                            <p class="upload-text">Drag and drop your image here</p>
+                            <p class="upload-hint">or click to browse</p>
+                        </div>
+                    </label>
+                </div>
+            {:else}
+                <label
+                    for="file-upload"
+                    class="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.293A1 1 0 015.586 4H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                    </svg>
+                    Choose Image
+                </label>
+            {/if}
         </div>
-    {/if}
-
-    {#if error}
-        <p class="error-message">{error}</p>
-    {/if}
+    </div>
 </div>
 
 <style>
@@ -239,6 +226,7 @@
 
     .upload-area {
         cursor: pointer;
+        display: block;
     }
 
     .upload-content {

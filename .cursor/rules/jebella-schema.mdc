@@ -40,16 +40,28 @@ Table: colors
 id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
 name: text, NOT NULL
 hex_code: text, NULL
+category: color_category, NOT NULL, DEFAULT 'primary'
+display_order: integer, NOT NULL, DEFAULT 0
+description: text, NULL
+is_active: boolean, NOT NULL, DEFAULT true
 is_deleted: boolean, NOT NULL, DEFAULT false
 created_at: timestamp with time zone, NOT NULL, DEFAULT now()
 updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+UNIQUE CONSTRAINT: (name, category)
 
 Table: sizes
 id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
 label: text, NOT NULL
+size_type: size_type, NOT NULL, DEFAULT 'alpha'
+category: size_category, NOT NULL, DEFAULT 'unisex'
+numeric_value: integer, NULL
+display_order: integer, NOT NULL, DEFAULT 0
+description: text, NULL
+is_active: boolean, NOT NULL, DEFAULT true
 is_deleted: boolean, NOT NULL, DEFAULT false
 created_at: timestamp with time zone, NOT NULL, DEFAULT now()
 updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+UNIQUE CONSTRAINT: (label, category)
 
 Table: products
 id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
@@ -174,6 +186,7 @@ updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
 
 For images (Storage Buckets):
 Upload to supabase bucket, and get url and save to the respective feild
+for Replacement or delete case you also need to delete the untracked data from the bucket.
 
 Brand Logo: for brands logo_url we have a Bucket named as brand-logos
 1 MB of limit set for per image (Equivalent to 1,048,576 bytes).
