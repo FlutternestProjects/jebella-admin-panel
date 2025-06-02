@@ -10,6 +10,7 @@
     let user: any = null;
     let shops: any[] = [];
     let loading = true;
+    let shopsLoading = false;
     let showLogoutDialog = false;
     let authChecked = false;
 
@@ -51,20 +52,8 @@
                 user = userData;
                 authChecked = true;
 
-                // Get all shops for this seller
-                const { data: shopList, error: shopListError } = await supabase
-                    .from('seller_shops')
-                    .select('*')
-                    .eq('user_id', userData.id)
-                    .eq('is_deleted', false);
-
-                if (!shopListError && shopList) {
-                    shops = shopList;
-                    // If no shop selected, select the first one
-                    if (shops.length > 0 && !get(selectedShop)) {
-                        selectedShop.set(shops[0].id);
-                    }
-                }
+                // Load shops after user is authenticated
+                await loadShops(userData.id);
 
             } catch (e) {
                 console.error('Error:', e);
@@ -95,6 +84,9 @@
                     authChecked = true;
                     loading = false;
                     
+                    // Load shops for the authenticated user
+                    await loadShops(userData.id);
+                    
                     // Redirect to dashboard if on login page
                     if (isLoginPage) {
                         goto('/seller/dashboard');
@@ -102,8 +94,10 @@
                 }
             } else if (event === 'SIGNED_OUT') {
                 user = null;
+                shops = [];
                 authChecked = true;
                 loading = false;
+                selectedShop.set(null);
                 if (!isLoginPage) {
                     goto('/seller/login');
                 }
@@ -116,15 +110,60 @@
         };
     });
 
+    async function loadShops(userId: string) {
+        try {
+            shopsLoading = true;
+            
+            // Get all shops for this seller
+            const { data: shopList, error: shopListError } = await supabase
+                .from('seller_shops')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('is_deleted', false);
+
+            if (!shopListError && shopList) {
+                shops = shopList;
+                // If no shop selected, select the first one
+                if (shops.length > 0 && !get(selectedShop)) {
+                    selectedShop.set(shops[0].id);
+                }
+            } else {
+                console.error('Error loading shops:', shopListError);
+                shops = [];
+            }
+        } catch (e) {
+            console.error('Error loading shops:', e);
+            shops = [];
+        } finally {
+            shopsLoading = false;
+        }
+    }
+
     function handleLogoutClick() {
         showLogoutDialog = true;
     }
 
     async function handleLogout() {
-        await supabase.auth.signOut();
-        user = null;
-        authChecked = false;
-        goto('/seller/login');
+        try {
+            // Clear local state first
+            user = null;
+            shops = [];
+            selectedShop.set(null);
+            
+            // Sign out from Supabase
+            await supabase.auth.signOut();
+            
+            // Set auth state after signout
+            authChecked = true;
+            loading = false;
+            
+            // Redirect to login
+            goto('/seller/login');
+        } catch (error) {
+            console.error('Logout error:', error);
+            // Even if there's an error, still redirect to login
+            goto('/seller/login');
+        }
     }
 
     function handleShopChange(event: Event) {
@@ -182,14 +221,19 @@
                     <span class="user-name">{user?.name || user?.email}</span>
                     <span class="user-role">Seller</span>
                     <label class="block mt-2 text-xs text-gray-400">Shop:</label>
-                    {#if shops.length > 0}
+                    {#if shopsLoading}
+                        <span class="shop-loading text-blue-400">Loading shops...</span>
+                    {:else if shops.length > 0}
                         <select class="shop-switcher" on:change={handleShopChange} bind:value={$selectedShop}>
                             {#each shops as s}
                                 <option value={s.id}>{s.shop_name}</option>
                             {/each}
                         </select>
                     {:else}
-                        <span class="shop-name text-red-400">No shop found</span>
+                        <div class="no-shop-container">
+                            <span class="shop-name text-red-400">No shop found</span>
+                            <a href="/seller/shops" class="create-shop-link">Create Shop</a>
+                        </div>
                     {/if}
                 </div>
                 <button class="logout-button" on:click={handleLogoutClick}>
@@ -320,5 +364,33 @@
         min-height: 100vh;
         font-size: 1.2rem;
         color: #4a5568;
+    }
+
+    .shop-loading {
+        display: block;
+        font-size: 0.875rem;
+        font-style: italic;
+    }
+
+    .no-shop-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .create-shop-link {
+        color: #4299e1;
+        text-decoration: none;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #4299e1;
+        border-radius: 4px;
+        text-align: center;
+        transition: all 0.2s;
+    }
+
+    .create-shop-link:hover {
+        background: #4299e1;
+        color: white;
     }
 </style> 
