@@ -11,61 +11,109 @@
     let shops: any[] = [];
     let loading = true;
     let showLogoutDialog = false;
+    let authChecked = false;
 
     $: currentPath = $page.url.pathname;
+    $: isLoginPage = currentPath === '/seller/login';
+    $: isAuthenticated = user !== null && authChecked;
 
-    // Only Products and Inventory tabs
-    const tabs = [
-        { name: 'Products', href: '/seller/products' },
-        { name: 'Inventory', href: '/seller/inventory' }
-    ];
+    onMount(() => {
+        // Async function for initial auth check
+        async function checkAuth() {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                if (error) throw error;
+                
+                if (!session) {
+                    authChecked = true;
+                    loading = false;
+                    if (!isLoginPage) {
+                        goto('/seller/login');
+                    }
+                    return;
+                }
 
-    onMount(async () => {
-        try {
-            const { data: { session }, error } = await supabase.auth.getSession();
-            if (error) throw error;
-            
-            if (!session) {
-                goto('/seller/login');
-                return;
+                // Get user data using id
+                const { data: userData, error: userError } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (userError || userData.user_type !== 'seller') {
+                    await supabase.auth.signOut();
+                    authChecked = true;
+                    loading = false;
+                    goto('/seller/login');
+                    return;
+                }
+
+                user = userData;
+                authChecked = true;
+
+                // Get all shops for this seller
+                const { data: shopList, error: shopListError } = await supabase
+                    .from('seller_shops')
+                    .select('*')
+                    .eq('user_id', userData.id)
+                    .eq('is_deleted', false);
+
+                if (!shopListError && shopList) {
+                    shops = shopList;
+                    // If no shop selected, select the first one
+                    if (shops.length > 0 && !get(selectedShop)) {
+                        selectedShop.set(shops[0].id);
+                    }
+                }
+
+            } catch (e) {
+                console.error('Error:', e);
+                authChecked = true;
+                if (!isLoginPage) {
+                    goto('/seller/login');
+                }
+            } finally {
+                loading = false;
             }
+        }
 
-            // Get user data using id
-            const { data: userData, error: userError } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', session.user.id)
-                .single();
+        // Run initial auth check
+        checkAuth();
 
-            if (userError || userData.user_type !== 'seller') {
-                await supabase.auth.signOut();
-                goto('/seller/login');
-                return;
-            }
+        // Listen for auth state changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_IN' && session) {
+                // User just signed in, reload user data
+                const { data: userData, error: userError } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .single();
 
-            user = userData;
-
-            // Get all shops for this seller
-            const { data: shopList, error: shopListError } = await supabase
-                .from('seller_shops')
-                .select('*')
-                .eq('user_id', userData.id)
-                .eq('is_deleted', false);
-
-            if (!shopListError && shopList) {
-                shops = shopList;
-                // If no shop selected, select the first one
-                if (shops.length > 0 && !get(selectedShop)) {
-                    selectedShop.set(shops[0].id);
+                if (!userError && userData.user_type === 'seller') {
+                    user = userData;
+                    authChecked = true;
+                    loading = false;
+                    
+                    // Redirect to dashboard if on login page
+                    if (isLoginPage) {
+                        goto('/seller/dashboard');
+                    }
+                }
+            } else if (event === 'SIGNED_OUT') {
+                user = null;
+                authChecked = true;
+                loading = false;
+                if (!isLoginPage) {
+                    goto('/seller/login');
                 }
             }
+        });
 
-        } catch (e) {
-            console.error('Error:', e);
-            goto('/seller/login');
-        } finally {
-            loading = false;
-        }
+        // Return cleanup function
+        return () => {
+            subscription.unsubscribe();
+        };
     });
 
     function handleLogoutClick() {
@@ -74,6 +122,8 @@
 
     async function handleLogout() {
         await supabase.auth.signOut();
+        user = null;
+        authChecked = false;
         goto('/seller/login');
     }
 
@@ -82,6 +132,14 @@
         selectedShop.set(id);
         // Optionally reload the page or trigger data reloads
         location.reload();
+    }
+
+    // Helper function to check if a nav item is active
+    function isNavActive(path: string): boolean {
+        if (path === '/seller/dashboard') {
+            return currentPath === '/seller/dashboard';
+        }
+        return currentPath.startsWith(path);
     }
 </script>
 
@@ -95,26 +153,33 @@
 
 {#if loading}
     <div class="loading">Loading...</div>
-{:else}
+{:else if isLoginPage}
+    <!-- Render login page without sidebar and tabs -->
+    <slot />
+{:else if isAuthenticated}
+    <!-- Render authenticated layout with sidebar -->
     <div class="seller-layout">
         <nav class="sidebar">
             <div class="logo">
                 <h1>Seller Dashboard</h1>
             </div>
             <ul class="nav-links">
-                <li class:active={$page.url.pathname === '/seller/dashboard'}>
+                <li class:active={isNavActive('/seller/dashboard')}>
                     <a href="/seller/dashboard">Dashboard</a>
                 </li>
-                <li class:active={$page.url.pathname === '/seller/shops'}>
+                <li class:active={isNavActive('/seller/shops')}>
                     <a href="/seller/shops">My Shops</a>
                 </li>
-                <li class:active={$page.url.pathname === '/seller/inventory'}>
+                <li class:active={isNavActive('/seller/products')}>
+                    <a href="/seller/products">Products</a>
+                </li>
+                <li class:active={isNavActive('/seller/inventory')}>
                     <a href="/seller/inventory">Inventory</a>
                 </li>
             </ul>
             <div class="user-section">
                 <div class="user-info">
-                    <span class="user-name">{user?.email}</span>
+                    <span class="user-name">{user?.name || user?.email}</span>
                     <span class="user-role">Seller</span>
                     <label class="block mt-2 text-xs text-gray-400">Shop:</label>
                     {#if shops.length > 0}
@@ -134,25 +199,23 @@
         </nav>
 
         <main class="main-content">
-            <nav class="seller-tabs">
-                {#each tabs as tab}
-                    <a
-                        href={tab.href}
-                        class="tab {currentPath.startsWith(tab.href) ? 'active' : ''}"
-                    >
-                        {tab.name}
-                    </a>
-                {/each}
-            </nav>
             <slot />
         </main>
     </div>
+{:else if authChecked}
+    <!-- Only show this after auth has been checked -->
+    <div class="loading">Redirecting to login...</div>
+{:else}
+    <!-- Still checking authentication -->
+    <div class="loading">Loading...</div>
 {/if}
 
 <style>
     .seller-layout {
         display: flex;
         min-height: 100vh;
+        max-height: 100vh;
+        overflow: hidden;
     }
 
     .sidebar {
@@ -162,6 +225,7 @@
         padding: 1.5rem;
         display: flex;
         flex-direction: column;
+        flex-shrink: 0;
     }
 
     .logo h1 {
@@ -245,6 +309,8 @@
         flex: 1;
         padding: 2rem;
         background: #f7fafc;
+        overflow-y: auto;
+        max-height: 100vh;
     }
 
     .loading {
@@ -254,33 +320,5 @@
         min-height: 100vh;
         font-size: 1.2rem;
         color: #4a5568;
-    }
-
-    .seller-tabs {
-        display: flex;
-        gap: 2rem;
-        border-bottom: 2px solid #e2e8f0;
-        margin-bottom: 2rem;
-        padding-left: 2rem;
-        background: #f7fafc;
-    }
-    .tab {
-        padding: 1rem 0;
-        font-size: 1.1rem;
-        color: #4a5568;
-        text-decoration: none;
-        border-bottom: 2px solid transparent;
-        transition: color 0.2s, border-bottom 0.2s;
-        cursor: pointer;
-    }
-    .tab.active {
-        color: #2b6cb0;
-        border-bottom: 2px solid #4299e1;
-        font-weight: 600;
-    }
-    .tab.disabled {
-        color: #a0aec0;
-        cursor: not-allowed;
-        pointer-events: none;
     }
 </style> 
