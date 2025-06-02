@@ -3,11 +3,20 @@
     import { supabase } from '$lib/supabase';
     import { goto } from '$app/navigation';
     import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte';
+    import { page } from '$app/stores';
+    import { selectedShop } from '$lib/stores/selectedShop';
+    import { get } from 'svelte/store';
 
     let user: any = null;
     let shop: any = null;
     let loading = true;
     let showLogoutDialog = false;
+    let shops: any[] = [];
+    let metrics = {
+        totalProducts: 0,
+        totalOrders: 0,
+        totalSales: 0
+    };
 
     onMount(async () => {
         try {
@@ -34,15 +43,47 @@
 
             user = userData;
 
-            // Get seller's shop information
-            const { data: shopData, error: shopError } = await supabase
+            // Get all shops for this seller
+            const { data: shopList, error: shopListError } = await supabase
                 .from('seller_shops')
                 .select('*')
                 .eq('user_id', userData.id)
+                .eq('is_deleted', false);
+
+            if (!shopListError && shopList) {
+                shops = shopList;
+                // If no shop selected, select the first one
+                if (shops.length > 0 && !get(selectedShop)) {
+                    selectedShop.set(shops[0].id);
+                }
+            }
+
+            // Get current shop info (optional, for dashboard display)
+            const selectedShopId = get(selectedShop);
+            if (selectedShopId) {
+                const { data: shopData, error: shopError } = await supabase
+                    .from('seller_shops')
+                    .select('*')
+                    .eq('id', selectedShopId)
+                    .single();
+                if (!shopError) {
+                    shop = shopData;
+                }
+            }
+
+            // Get shop metrics
+            const { data: metricsData, error: metricsError } = await supabase
+                .from('seller_metrics')
+                .select('*')
+                .eq('shop_id', selectedShopId)
                 .single();
 
-            if (!shopError) {
-                shop = shopData;
+            if (!metricsError && metricsData) {
+                metrics = {
+                    totalProducts: metricsData.products_count || 0,
+                    totalOrders: metricsData.total_orders || 0,
+                    totalSales: metricsData.total_sales || 0
+                };
             }
 
         } catch (e) {
@@ -61,6 +102,13 @@
         await supabase.auth.signOut();
         goto('/seller/login');
     }
+
+    function handleShopChange(event: Event) {
+        const id = (event.target as HTMLSelectElement).value;
+        selectedShop.set(id);
+        // Optionally reload the page or trigger data reloads
+        location.reload();
+    }
 </script>
 
 <ConfirmationDialog
@@ -73,40 +121,14 @@
 
 {#if loading}
     <div class="loading">Loading...</div>
+{:else if !$selectedShop}
+    <div class="setup-shop">
+        <h3>Select or Create a Shop</h3>
+        <p>You need to select or create a shop to view your dashboard</p>
+        <a href="/seller/shops" class="setup-button">Manage Shops</a>
+    </div>
 {:else}
     <div class="dashboard">
-        <nav class="sidebar">
-            <div class="logo">
-                <h1>Seller Dashboard</h1>
-            </div>
-            <ul class="nav-links">
-                <li class="active">
-                    <a href="/seller/dashboard">Dashboard</a>
-                </li>
-                <li>
-                    <a href="/seller/products">My Products</a>
-                </li>
-                <li>
-                    <a href="/seller/orders">Orders</a>
-                </li>
-                <li>
-                    <a href="/seller/shop">Shop Settings</a>
-                </li>
-            </ul>
-            <div class="user-section">
-                <div class="user-info">
-                    <span class="user-name">{user?.email}</span>
-                    <span class="user-role">Seller</span>
-                    {#if shop}
-                        <span class="shop-name">{shop.shop_name}</span>
-                    {/if}
-                </div>
-                <button class="logout-button" on:click={handleLogoutClick}>
-                    Logout
-                </button>
-            </div>
-        </nav>
-
         <main class="content">
             <header class="content-header">
                 <h2>Dashboard Overview</h2>
@@ -115,15 +137,15 @@
             <div class="dashboard-grid">
                 <div class="stat-card">
                     <h3>Total Products</h3>
-                    <p class="stat-number">0</p>
+                    <p class="stat-number">{metrics.totalProducts}</p>
                 </div>
                 <div class="stat-card">
                     <h3>Total Orders</h3>
-                    <p class="stat-number">0</p>
+                    <p class="stat-number">{metrics.totalOrders}</p>
                 </div>
                 <div class="stat-card">
                     <h3>Total Sales</h3>
-                    <p class="stat-number">$0</p>
+                    <p class="stat-number">${metrics.totalSales.toFixed(2)}</p>
                 </div>
                 <div class="stat-card">
                     <h3>Shop Rating</h3>
@@ -312,5 +334,15 @@
         min-height: 100vh;
         font-size: 1.2rem;
         color: #4a5568;
+    }
+
+    .shop-switcher {
+        width: 100%;
+        margin-top: 0.25rem;
+        padding: 0.5rem;
+        border-radius: 6px;
+        border: 1px solid #2d3748;
+        background: #2d3748;
+        color: #fff;
     }
 </style> 

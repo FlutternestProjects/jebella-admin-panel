@@ -7,8 +7,8 @@
         id?: string;
         email: string;
         name: string;
-        gender: string;
-        age: number;
+        gender?: string;
+        age?: number;
     }
 
     let sellers: any[] = [];
@@ -99,16 +99,15 @@
             const result = await response.json();
             if (!result.success) throw new Error(result.error);
 
-            // Create user record
+            // Create user record without gender and age for new sellers
             const { data: userData, error: userError } = await supabase
                 .from('users')
                 .insert({
                     id: result.data.user.id,
                     user_type: 'seller',
                     status: 'pending_verification',
-                    name: formData.name,
-                    gender: formData.gender,
-                    age: formData.age
+                    name: formData.name
+                    // Removed gender and age - sellers can add these later in their profile
                 })
                 .select()
                 .single();
@@ -255,24 +254,31 @@
                             required
                         />
                     </div>
-                    <div class="form-group">
-                        <label for="gender">Gender</label>
-                        <select id="gender" bind:value={formData.gender}>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="age">Age</label>
-                        <input
-                            type="number"
-                            id="age"
-                            bind:value={formData.age}
-                            min="18"
-                            required
-                        />
-                    </div>
+                    {#if isEditing}
+                        <!-- Only show gender and age fields when editing existing sellers -->
+                        <div class="form-group">
+                            <label for="gender">Gender</label>
+                            <select id="gender" bind:value={formData.gender}>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="age">Age</label>
+                            <input
+                                type="number"
+                                id="age"
+                                bind:value={formData.age}
+                                min="18"
+                            />
+                        </div>
+                    {:else}
+                        <!-- Show info message for new sellers -->
+                        <div class="info-message">
+                            <p><strong>Note:</strong> Gender and age can be added by the seller later in their profile settings.</p>
+                        </div>
+                    {/if}
                     <div class="form-actions">
                         <button type="submit" class="submit-button" disabled={isLoading}>
                             {#if isLoading}
@@ -314,10 +320,10 @@
                 {:else}
                     {#each sellers as seller}
                         <tr>
-                            <td>{seller.name}</td>
+                            <td>{seller.name || 'Not provided'}</td>
                             <td>{seller.user_emails[0].email}</td>
-                            <td>{seller.gender}</td>
-                            <td>{seller.age}</td>
+                            <td>{seller.gender || 'Not provided'}</td>
+                            <td>{seller.age || 'Not provided'}</td>
                             <td>{seller.status}</td>
                             <td class="actions">
                                 <button class="edit-button" on:click={() => openEditForm(seller)}>
@@ -418,6 +424,20 @@
         border: 2px solid #e2e8f0;
         border-radius: 6px;
         font-size: 1rem;
+    }
+
+    .info-message {
+        background: #ebf8ff;
+        border: 1px solid #bee3f8;
+        border-radius: 6px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .info-message p {
+        margin: 0;
+        color: #2b6cb0;
+        font-size: 0.875rem;
     }
 
     .form-actions {
@@ -533,25 +553,32 @@
         cursor: not-allowed;
     }
 
-    .pagination button:not(:disabled):hover {
-        background: #f7fafc;
+    .loading {
+        text-align: center;
+        color: #4a5568;
     }
 
-    .error-message,
-    .success-message {
+    .empty {
+        text-align: center;
+        color: #a0aec0;
+    }
+
+    .error-message {
+        background: #fed7d7;
+        border: 1px solid #feb2b2;
+        color: #c53030;
         padding: 1rem;
         border-radius: 6px;
         margin-bottom: 1rem;
     }
 
-    .error-message {
-        background: #fed7d7;
-        color: #c53030;
-    }
-
     .success-message {
         background: #c6f6d5;
+        border: 1px solid #9ae6b4;
         color: #2f855a;
+        padding: 1rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
     }
 
     .loading-spinner {
@@ -561,12 +588,10 @@
         border: 2px solid #ffffff;
         border-radius: 50%;
         border-top-color: transparent;
-        animation: spin 1s linear infinite;
+        animation: spin 1s ease-in-out infinite;
     }
 
     @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
+        to { transform: rotate(360deg); }
     }
 </style> 

@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Make sure we the paramters:
+
+1. created_at
+2. updated_at 
+
+at the all possible db schemas where it fits, and a trigger function should be there for updated_at (we already have created trigger_set_timestamp() function over supabase)
