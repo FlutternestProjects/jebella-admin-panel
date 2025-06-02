@@ -181,8 +181,93 @@ is_deleted: boolean, NOT NULL, DEFAULT false
 created_at: timestamp with time zone, NOT NULL, DEFAULT now()
 updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
 
+Table: inventory
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+shop_id: uuid, NOT NULL, FK → seller_shops.id
+product_variant_id: uuid, NOT NULL, FK → product_variants.id
+quantity: integer, NOT NULL, DEFAULT 0
+min_quantity: integer, NOT NULL, DEFAULT 0
+max_quantity: integer, NOT NULL, DEFAULT 0
+status: inventory_status, NOT NULL, DEFAULT 'in_stock'
+location: text, NULL
+batch_number: text, NULL
+expiry_date: timestamp with time zone, NULL
+cost_price: numeric, NULL
+selling_price: numeric, NULL
+notes: text, NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
 
+Table: inventory_movements
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+inventory_id: uuid, NOT NULL, FK → inventory.id
+movement_type: inventory_movement_type, NOT NULL
+quantity: integer, NOT NULL
+reference_id: uuid, NULL
+reference_type: text, NULL
+notes: text, NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+created_by: uuid, NOT NULL, FK → users.id
 
+Table: inventory_alerts
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+inventory_id: uuid, NOT NULL, FK → inventory.id
+alert_type: text, NOT NULL
+message: text, NOT NULL
+is_resolved: boolean, NOT NULL, DEFAULT false
+resolved_at: timestamp with time zone, NULL
+resolved_by: uuid, NULL, FK → users.id
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Table: inventory_transfers
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+from_shop_id: uuid, NOT NULL, FK → seller_shops.id
+to_shop_id: uuid, NOT NULL, FK → seller_shops.id
+status: text, NOT NULL, DEFAULT 'pending'
+notes: text, NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+created_by: uuid, NOT NULL, FK → users.id
+completed_at: timestamp with time zone, NULL
+completed_by: uuid, NULL, FK → users.id
+
+Table: inventory_transfer_items
+id: uuid, NOT NULL, DEFAULT gen_random_uuid(), PK
+transfer_id: uuid, NOT NULL, FK → inventory_transfers.id
+product_variant_id: uuid, NOT NULL, FK → product_variants.id
+quantity: integer, NOT NULL
+notes: text, NULL
+is_deleted: boolean, NOT NULL, DEFAULT false
+created_at: timestamp with time zone, NOT NULL, DEFAULT now()
+updated_at: timestamp with time zone, NOT NULL, DEFAULT now()
+
+Enums:
+inventory_status: in_stock, low_stock, out_of_stock, discontinued, on_hold
+inventory_movement_type: purchase, sale, return, adjustment, transfer, damage, expiry
+
+Indexes:
+idx_inventory_shop ON inventory(shop_id)
+idx_inventory_product ON inventory(product_variant_id)
+idx_inventory_status ON inventory(status)
+idx_inventory_movements_inventory ON inventory_movements(inventory_id)
+idx_inventory_movements_type ON inventory_movements(movement_type)
+idx_inventory_alerts_inventory ON inventory_alerts(inventory_id)
+idx_inventory_transfers_shops ON inventory_transfers(from_shop_id, to_shop_id)
+
+Triggers:
+inventory_status_trigger: Updates status based on quantity
+inventory_movement_trigger: Tracks all inventory movements
+set_timestamp_inventory: Updates updated_at
+set_timestamp_inventory_movements: Updates updated_at
+set_timestamp_inventory_alerts: Updates updated_at
+set_timestamp_inventory_transfers: Updates updated_at
+set_timestamp_inventory_transfer_items: Updates updated_at
 
 For images (Storage Buckets):
 Upload to supabase bucket, and get url and save to the respective feild
@@ -190,7 +275,6 @@ for Replacement or delete case you also need to delete the untracked data from t
 
 Brand Logo: for brands logo_url we have a Bucket named as brand-logos
 1 MB of limit set for per image (Equivalent to 1,048,576 bytes).
-
 
 Overall note:
 updated_at: I set the auto update triger in supabase, when we will update the data.

@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+1. There will be multiple shops for a single seller.
+2. Seller can create product, and can create multiple product variants of that product.
+3. Each seller shop will have there own inventory, and own metrics. 
+4. We will manage each shop differently. For e.g, let suppose there is a product abc which is available in one shop of the seller, and at one shop its is not, and can be available on another shop with different qty. also there can be optional possibility of price variability from one shop to another.
+
+There should be a way to change the shop from the panel. So that panel will show the respetive shoe related data at a time, and there will be no confiction bw data of multiple shops.

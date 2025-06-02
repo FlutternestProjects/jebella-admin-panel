@@ -3,11 +3,11 @@ description:
 globs: 
 alwaysApply: false
 ---
-Rules for Jebella Admin
+Jebella Admin:
 
 Basic IDEA of the app here
 
-This is a admin panel for a e-commerce platform (which foucus over selling clothing stuff and accessories for men, women, e.t.c) named as Jebella,
+This is a web panel for a e-commerce platform (which foucus over selling clothing stuff and accessories for men, women, e.t.c) named as Jebella,
 where we have:
 1. admin (platform owner of Jebella, will have full access)
 2. sellers (they will have the some different access then the main admin)
