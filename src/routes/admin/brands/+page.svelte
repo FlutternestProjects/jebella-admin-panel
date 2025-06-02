@@ -139,7 +139,20 @@
         } else if (modalType === 'edit') {
             selectedEditFile = null;
             if (selectedBrand) {
+                // Store the old URL for potential deletion
+                const oldLogoUrl = selectedBrand.logo_url;
                 selectedBrand.logo_url = '';
+                
+                // Delete the old logo from storage if it exists
+                if (oldLogoUrl) {
+                    deleteOldLogo(oldLogoUrl).then((success) => {
+                        if (success) {
+                            console.log('Old logo deleted from storage');
+                        } else {
+                            console.warn('Failed to delete old logo from storage');
+                        }
+                    });
+                }
             }
             isImageRemoved = true;
             console.log('File removed from edit modal');
@@ -150,6 +163,40 @@
 
     function handleUploadError(event: CustomEvent<{ message: string }>) {
         toast.error(event.detail.message);
+    }
+
+    async function deleteOldLogo(logoUrl: string): Promise<boolean> {
+        try {
+            if (!logoUrl) return true;
+
+            // Extract the file path from the URL
+            // URL format: https://[project].supabase.co/storage/v1/object/public/brand-logos/[filename]
+            const urlParts = logoUrl.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            
+            if (!fileName) {
+                console.warn('Could not extract filename from URL:', logoUrl);
+                return true; // Don't block the operation
+            }
+
+            console.log('Deleting old logo:', fileName);
+
+            const { error } = await supabase.storage
+                .from('brand-logos')
+                .remove([fileName]);
+
+            if (error) {
+                console.error('Error deleting old logo:', error);
+                // Don't throw error - we don't want to block the update if deletion fails
+                return false;
+            }
+
+            console.log('Old logo deleted successfully:', fileName);
+            return true;
+        } catch (error) {
+            console.error('Error in deleteOldLogo:', error);
+            return false;
+        }
     }
 
     async function uploadLogo(file: File): Promise<string | null> {
@@ -249,12 +296,26 @@
                 return;
             }
 
+            let logoUrl = newBrand.logo_url;
+
+            // If a file was selected, upload it
+            if (selectedFile) {
+                console.log('Uploading selected file for add modal:', selectedFile.name);
+                const uploadedUrl = await uploadLogo(selectedFile);
+                if (uploadedUrl) {
+                    logoUrl = uploadedUrl;
+                } else {
+                    toast.error('Failed to upload logo');
+                    return;
+                }
+            }
+
             const { error } = await supabase
                 .from('brands')
                 .insert([{ 
                     name: newBrand.name.trim(),
                     description: newBrand.description.trim(),
-                    logo_url: newBrand.logo_url.trim(),
+                    logo_url: logoUrl,
                     is_deleted: false
                 }]);
 
@@ -266,6 +327,7 @@
             toast.success('Brand added successfully');
             showAddModal = false;
             newBrand = { name: '', description: '', logo_url: '' };
+            selectedFile = null;
             await fetchBrands();
         } catch (error) {
             console.error('Error adding brand:', error);
@@ -302,12 +364,34 @@
                 return;
             }
 
+            let logoUrl = selectedBrand.logo_url;
+
+            // If a new file was selected, upload it
+            if (selectedEditFile) {
+                console.log('Uploading selected file for edit modal:', selectedEditFile.name);
+                
+                // First, delete the old logo if it exists
+                if (selectedBrand.logo_url) {
+                    console.log('Deleting old logo before uploading new one');
+                    await deleteOldLogo(selectedBrand.logo_url);
+                }
+                
+                // Upload the new logo
+                const uploadedUrl = await uploadLogo(selectedEditFile);
+                if (uploadedUrl) {
+                    logoUrl = uploadedUrl;
+                } else {
+                    toast.error('Failed to upload logo');
+                    return;
+                }
+            }
+
             const { error } = await supabase
                 .from('brands')
                 .update({
                     name: selectedBrand.name.trim(),
                     description: selectedBrand.description.trim(),
-                    logo_url: selectedBrand.logo_url.trim(),
+                    logo_url: logoUrl,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', selectedBrand.id);
@@ -320,6 +404,7 @@
             toast.success('Brand updated successfully');
             showEditModal = false;
             selectedBrand = null;
+            selectedEditFile = null;
             await fetchBrands();
         } catch (error) {
             console.error('Error updating brand:', error);
@@ -331,12 +416,21 @@
         if (!confirm('Are you sure you want to delete this brand?')) return;
 
         try {
+            // Find the brand to get its logo URL before deletion
+            const brandToDelete = brands.find(b => b.id === brandId);
+            
             const { error } = await supabase
                 .from('brands')
                 .update({ is_deleted: true })
                 .eq('id', brandId);
 
             if (error) throw error;
+
+            // Delete the logo from storage if it exists
+            if (brandToDelete?.logo_url) {
+                console.log('Deleting logo for deleted brand');
+                await deleteOldLogo(brandToDelete.logo_url);
+            }
 
             toast.success('Brand deleted successfully');
             await fetchBrands();
@@ -350,11 +444,21 @@
     function handleCloseAddModal() {
         showAddModal = false;
         newBrand = { name: '', description: '', logo_url: '' };
+        selectedFile = null;
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            previewUrl = null;
+        }
     }
 
     function handleCloseEditModal() {
         showEditModal = false;
         selectedBrand = null;
+        selectedEditFile = null;
+        if (editPreviewUrl) {
+            URL.revokeObjectURL(editPreviewUrl);
+            editPreviewUrl = null;
+        }
     }
 
     // Cleanup preview URLs when component is destroyed
@@ -492,16 +596,20 @@
                     ></textarea>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2" for="logo_url">
-                        Logo URL
+                    <label class="block text-gray-700 text-sm font-bold mb-2">
+                        Brand Logo
                     </label>
-                    <input
-                        type="url"
-                        id="logo_url"
-                        bind:value={newBrand.logo_url}
-                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                        placeholder="https://example.com/logo.png"
-                    />
+                    <div data-modal="add">
+                        <ImageUpload
+                            bind:this={addImageUpload}
+                            currentImageUrl={newBrand.logo_url}
+                            modalType="add"
+                            dragAndDrop={true}
+                            on:fileSelect={handleFileSelect}
+                            on:remove={handleRemoveImage}
+                            on:error={handleUploadError}
+                        />
+                    </div>
                 </div>
                 <div class="flex justify-end gap-2">
                     <button
@@ -564,16 +672,20 @@
                     ></textarea>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2" for="edit-logo_url">
-                        Logo URL
+                    <label class="block text-gray-700 text-sm font-bold mb-2">
+                        Brand Logo
                     </label>
-                    <input
-                        type="url"
-                        id="edit-logo_url"
-                        bind:value={selectedBrand.logo_url}
-                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                        placeholder="https://example.com/logo.png"
-                    />
+                    <div data-modal="edit">
+                        <ImageUpload
+                            bind:this={editImageUpload}
+                            currentImageUrl={selectedBrand.logo_url}
+                            modalType="edit"
+                            dragAndDrop={true}
+                            on:fileSelect={handleFileSelect}
+                            on:remove={handleRemoveImage}
+                            on:error={handleUploadError}
+                        />
+                    </div>
                 </div>
                 <div class="flex justify-end gap-2">
                     <button
