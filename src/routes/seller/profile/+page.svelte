@@ -112,7 +112,9 @@
             success = null;
 
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
+            if (!session) {
+                throw new Error('No active session found');
+            }
 
             const { error: updateError } = await supabase
                 .from('users')
@@ -126,10 +128,18 @@
             if (updateError) throw updateError;
 
             success = 'Profile updated successfully!';
-            await loadUserData();
+            
+            // Reload user data but don't let it affect the saving state
+            try {
+                await loadUserData();
+            } catch (loadError) {
+                console.error('Error reloading user data:', loadError);
+                // Don't throw this error as the update was successful
+            }
 
         } catch (e: any) {
             error = e?.message || 'Failed to update profile';
+            console.error('Profile update error:', e);
         } finally {
             saving = false;
         }
@@ -141,7 +151,9 @@
             error = null;
 
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
+            if (!session) {
+                throw new Error('No active session found');
+            }
 
             if (editingPhoneId) {
                 // Update existing phone
@@ -174,10 +186,18 @@
             showPhoneForm = false;
             editingPhoneId = null;
             phoneForm = { country_code: '+1', phone: '', label: '', is_primary: false };
-            await loadUserData();
+            
+            // Reload user data but don't let it affect the saving state
+            try {
+                await loadUserData();
+            } catch (loadError) {
+                console.error('Error reloading user data:', loadError);
+                // Don't throw this error as the operation was successful
+            }
 
         } catch (e: any) {
             error = e?.message || 'Failed to save phone number';
+            console.error('Phone submit error:', e);
         } finally {
             saving = false;
         }
@@ -189,7 +209,9 @@
             error = null;
 
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
+            if (!session) {
+                throw new Error('No active session found');
+            }
 
             if (editingAddressId) {
                 // Update existing address
@@ -217,10 +239,18 @@
                 name: '', label: '', line_1: '', line_2: '', city: '', 
                 state: '', postal_code: '', country: '', phone: '', is_default: false
             };
-            await loadUserData();
+            
+            // Reload user data but don't let it affect the saving state
+            try {
+                await loadUserData();
+            } catch (loadError) {
+                console.error('Error reloading user data:', loadError);
+                // Don't throw this error as the operation was successful
+            }
 
         } catch (e: any) {
             error = e?.message || 'Failed to save address';
+            console.error('Address submit error:', e);
         } finally {
             saving = false;
         }
@@ -230,15 +260,28 @@
         if (!confirm('Are you sure you want to delete this phone number?')) return;
 
         try {
-            const { error } = await supabase
+            saving = true;
+            error = null;
+
+            const { error: deleteError } = await supabase
                 .from('user_phone_numbers')
                 .update({ is_deleted: true })
                 .eq('id', id);
 
-            if (error) throw error;
-            await loadUserData();
+            if (deleteError) throw deleteError;
+            
+            // Reload user data but don't let it affect the saving state
+            try {
+                await loadUserData();
+            } catch (loadError) {
+                console.error('Error reloading user data:', loadError);
+                // Don't throw this error as the delete was successful
+            }
         } catch (e: any) {
             error = e?.message || 'Failed to delete phone number';
+            console.error('Delete phone error:', e);
+        } finally {
+            saving = false;
         }
     }
 
@@ -263,15 +306,28 @@
         if (!confirm('Are you sure you want to delete this address?')) return;
 
         try {
-            const { error } = await supabase
+            saving = true;
+            error = null;
+
+            const { error: deleteError } = await supabase
                 .from('user_addresses')
                 .update({ is_deleted: true })
                 .eq('id', id);
 
-            if (error) throw error;
-            await loadUserData();
+            if (deleteError) throw deleteError;
+            
+            // Reload user data but don't let it affect the saving state
+            try {
+                await loadUserData();
+            } catch (loadError) {
+                console.error('Error reloading user data:', loadError);
+                // Don't throw this error as the delete was successful
+            }
         } catch (e: any) {
             error = e?.message || 'Failed to delete address';
+            console.error('Delete address error:', e);
+        } finally {
+            saving = false;
         }
     }
 
