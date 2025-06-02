@@ -218,7 +218,9 @@
             </ul>
             <div class="user-section">
                 <div class="user-info">
-                    <span class="user-name">{user?.name || user?.email}</span>
+                    <a href="/seller/profile" class="user-name-link">
+                        <span class="user-name">{user?.name || user?.email}</span>
+                    </a>
                     <span class="user-role">Seller</span>
                     <label class="block mt-2 text-xs text-gray-400">Shop:</label>
                     {#if shopsLoading}
@@ -311,6 +313,21 @@
 
     .user-info {
         margin-bottom: 1rem;
+    }
+
+    .user-name-link {
+        text-decoration: none;
+        color: inherit;
+        display: block;
+        padding: 0.5rem;
+        border-radius: 6px;
+        transition: background-color 0.2s;
+        margin: -0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .user-name-link:hover {
+        background-color: #2d3748;
     }
 
     .user-name {
